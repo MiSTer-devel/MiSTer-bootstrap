@@ -1,4 +1,4 @@
-# MiSTer-bootstrap-go
+# MiSTer-bootstrap
 
 Tool to bootstrap all latest cores for the MiSTer platform. Written in Golang with the hope of eventually running it on the MiSTer itself.
 
