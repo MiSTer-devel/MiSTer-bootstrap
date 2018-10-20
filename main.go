@@ -4,22 +4,47 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/google/go-github/github"
-	"golang.org/x/oauth2"
 	"io"
+	"log"
 	"net/http"
 	"os"
+	"path"
+	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/boltdb/bolt"
+	"github.com/google/go-github/github"
+	"golang.org/x/oauth2"
 )
 
 func main() {
 	token := flag.String("t", "", "Github Personal API Token")
-	output := flag.String("o", "~/MiSTer-bootstrap", "Output Directory")
+	output := flag.String("o", "/tmp/mister", "Output Directory")
 
 	flag.Parse()
 
 	os.MkdirAll(*output, os.ModePerm)
+
+	dbPath := path.Join(*output, "cores.db")
+
+	db, err := bolt.Open(dbPath, 0600, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	err = db.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists([]byte("CoreInfo"))
+		if err != nil {
+			return fmt.Errorf("Create bolt bucket failed: %s", err)
+		}
+		return nil
+	})
+
+	if err != nil {
+		fmt.Printf("Could not create bucket: %s", err)
+	}
 
 	if *token == "" {
 		fmt.Println("Github Personal API Token Required, use -t <API Token>")
@@ -68,14 +93,54 @@ func main() {
 
 		latest := cores[len(cores)-1]
 
-		fmt.Println(*latest.Name)
+		sha, _ := GetLatestCoreInfo(db, repo)
 
-		err = DownloadCore(fmt.Sprintf("%s/%s", *output, *latest.Name), *latest.DownloadURL)
+		if sha != nil {
+			fmt.Printf("Latest SHA found for %s: %s\n", *repo.Name, sha)
+		}
 
-		if err != nil {
-			panic(err)
+		if string(sha) == *latest.SHA {
+			fmt.Printf("Already have latest version for %s: %s\n", *repo.Name, *latest.SHA)
+		} else {
+			fmt.Printf("Found newer version for %s: %s\n", *repo.Name, *latest.SHA)
+
+			err := DownloadCore(fmt.Sprintf("%s/%s", *output, *latest.Name), *latest.DownloadURL)
+
+			if err != nil {
+				panic(err)
+			}
+
+			err = SaveCoreInfo(db, repo, latest)
+
+			if err != nil {
+				panic(err)
+			}
 		}
 	}
+}
+
+// SaveCoreInfo save core info to kv store.
+func SaveCoreInfo(db *bolt.DB, repo *github.Repository, core *github.RepositoryContent) error {
+	tx, err := db.Begin(false)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	err = tx.Bucket([]byte("CoreInfo")).Put([]byte(*repo.Name), []byte(*core.SHA))
+	if err != nil {
+		return fmt.Errorf("Put error: %s", err)
+	}
+	return nil
+}
+
+// GetLatestCoreInfo get core info from kv store.
+func GetLatestCoreInfo(db *bolt.DB, repo *github.Repository) (sha []byte, err error) {
+	tx, err := db.Begin(false)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	return tx.Bucket([]byte("CoreInfo")).Get([]byte(*repo.Name)), nil
 }
 
 // FilterCores applies a test function to each element in the list of cores and returns passing cores.
@@ -89,8 +154,13 @@ func FilterCores(cores []*github.RepositoryContent, test func(string) bool) (ret
 }
 
 // DownloadCore downloads core to local filesystem.
-func DownloadCore(filepath string, url string) error {
-	out, err := os.Create(filepath)
+func DownloadCore(path string, url string) error {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+
+	out, err := os.Create(abs)
 	if err != nil {
 		return err
 	}
