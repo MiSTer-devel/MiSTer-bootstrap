@@ -8,12 +8,10 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"sort"
 	"strings"
 
-	"github.com/boltdb/bolt"
 	"github.com/google/go-github/github"
 	"golang.org/x/oauth2"
 )
@@ -25,26 +23,6 @@ func main() {
 	flag.Parse()
 
 	os.MkdirAll(*output, os.ModePerm)
-
-	dbPath := path.Join(*output, "cores.db")
-
-	db, err := bolt.Open(dbPath, 0600, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
-
-	err = db.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists([]byte("CoreInfo"))
-		if err != nil {
-			return fmt.Errorf("Create bolt bucket failed: %s", err)
-		}
-		return nil
-	})
-
-	if err != nil {
-		fmt.Printf("Could not create bucket: %s", err)
-	}
 
 	if *token == "" {
 		fmt.Println("Github Personal API Token Required, use -t <API Token>")
@@ -93,54 +71,17 @@ func main() {
 
 		latest := cores[len(cores)-1]
 
-		sha, _ := GetLatestCoreInfo(db, repo)
-
-		if sha != nil {
-			fmt.Printf("Latest SHA found for %s: %s\n", *repo.Name, sha)
-		}
-
-		if string(sha) == *latest.SHA {
-			fmt.Printf("Already have latest version for %s: %s\n", *repo.Name, *latest.SHA)
-		} else {
-			fmt.Printf("Found newer version for %s: %s\n", *repo.Name, *latest.SHA)
-
+		if _, err := os.Stat(fmt.Sprintf("%s/%s", *output, *latest.Name)); os.IsNotExist(err) {
+			log.Printf("Downloadin %s core...\n", *latest.Name)
 			err := DownloadCore(fmt.Sprintf("%s/%s", *output, *latest.Name), *latest.DownloadURL)
 
 			if err != nil {
 				panic(err)
 			}
-
-			err = SaveCoreInfo(db, repo, latest)
-
-			if err != nil {
-				panic(err)
-			}
+		} else {
+			log.Printf("Core %s already downloaded, skipping\n", *latest.Name)
 		}
 	}
-}
-
-// SaveCoreInfo save core info to kv store.
-func SaveCoreInfo(db *bolt.DB, repo *github.Repository, core *github.RepositoryContent) error {
-	tx, err := db.Begin(false)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	err = tx.Bucket([]byte("CoreInfo")).Put([]byte(*repo.Name), []byte(*core.SHA))
-	if err != nil {
-		return fmt.Errorf("Put error: %s", err)
-	}
-	return nil
-}
-
-// GetLatestCoreInfo get core info from kv store.
-func GetLatestCoreInfo(db *bolt.DB, repo *github.Repository) (sha []byte, err error) {
-	tx, err := db.Begin(false)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-	return tx.Bucket([]byte("CoreInfo")).Get([]byte(*repo.Name)), nil
 }
 
 // FilterCores applies a test function to each element in the list of cores and returns passing cores.

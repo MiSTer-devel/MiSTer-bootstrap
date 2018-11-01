@@ -1,4 +1,5 @@
 .idea/
 vendor/
+bin/
 .token
 cores.db
