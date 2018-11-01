@@ -5,7 +5,7 @@ BINARY_NAME=bootstrap
 
 all:	clean build
 build: 
-		$(GOBUILD) -o bin/$(BINARY_NAME) -v src/main.go
+		$(GOBUILD) -o $(BINARY_NAME) -v src/main.go
 clean:
 		$(GOCLEAN)
-		rm -f bin/$(BINARY_NAME)
+		rm -f $(BINARY_NAME)

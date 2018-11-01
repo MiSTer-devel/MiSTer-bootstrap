@@ -5,52 +5,82 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/gin-gonic/contrib/static"
+	"github.com/gin-gonic/gin"
 	"github.com/google/go-github/github"
 	"golang.org/x/oauth2"
 )
 
+// Core core info
+type Core struct {
+	Name string `json:"name" binding:"required"`
+	File string `json:"file" binding:"required"`
+	URL  string `json:"url" binding:"required"`
+}
+
+var client *github.Client
+var ctx = context.Background()
+
 func main() {
+
 	token := flag.String("t", "", "Github Personal API Token")
 	output := flag.String("o", "/tmp/mister", "Output Directory")
-
 	flag.Parse()
-
-	os.MkdirAll(*output, os.ModePerm)
 
 	if *token == "" {
 		fmt.Println("Github Personal API Token Required, use -t <API Token>")
 		os.Exit(-1)
 	}
 
-	org := "MiSTer-devel"
-	path := "releases"
-
-	ctx := context.Background()
+	// Setup Github Client
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: *token},
 	)
 	tc := oauth2.NewClient(ctx, ts)
 
-	client := github.NewClient(tc)
+	client = github.NewClient(tc)
+
+	// Setup Output Directory
+	os.MkdirAll(*output, os.ModePerm)
+
+	router := gin.Default()
+	router.Use(static.Serve("/", static.LocalFile("./views", true)))
+
+	api := router.Group("/api")
+	{
+		api.GET("/", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{
+				"message": "pong",
+			})
+		})
+		api.GET("/cores", GetCoreList)
+	}
+
+	router.Run(":3000")
+}
+
+// GetCoreList return list of latest cores.
+func GetCoreList(c *gin.Context) {
+	response := make([]Core, 0)
 
 	opt := &github.RepositoryListByOrgOptions{
 		ListOptions: github.ListOptions{PerPage: 500},
 	}
+
+	org := "MiSTer-devel"
+	path := "releases"
 
 	repos, _, err := client.Repositories.ListByOrg(ctx, org, opt)
 
 	if err != nil {
 		panic(err)
 	}
-
-	hasCoresTest := func(s string) bool { return strings.HasSuffix(s, ".rbf") }
 
 	for _, repo := range repos {
 		_, dir, _, err := client.Repositories.GetContents(ctx, org, *repo.Name, path, nil)
@@ -59,6 +89,7 @@ func main() {
 			continue
 		}
 
+		hasCoresTest := func(s string) bool { return strings.HasSuffix(s, ".rbf") }
 		cores := FilterCores(dir, hasCoresTest)
 
 		sort.Slice(cores, func(i, j int) bool {
@@ -71,17 +102,17 @@ func main() {
 
 		latest := cores[len(cores)-1]
 
-		if _, err := os.Stat(fmt.Sprintf("%s/%s", *output, *latest.Name)); os.IsNotExist(err) {
-			log.Printf("Downloadin %s core...\n", *latest.Name)
-			err := DownloadCore(fmt.Sprintf("%s/%s", *output, *latest.Name), *latest.DownloadURL)
-
-			if err != nil {
-				panic(err)
-			}
-		} else {
-			log.Printf("Core %s already downloaded, skipping\n", *latest.Name)
+		core := Core{
+			Name: *repo.Name,
+			File: *latest.Name,
+			URL:  *latest.DownloadURL,
 		}
+
+		response = append(response, core)
 	}
+
+	c.Header("Content-Type", "application/json")
+	c.JSON(http.StatusOK, response)
 }
 
 // FilterCores applies a test function to each element in the list of cores and returns passing cores.
