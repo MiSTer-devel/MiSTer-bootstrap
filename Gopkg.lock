@@ -34,7 +34,7 @@
     "context/ctxhttp",
   ]
   pruneopts = "UT"
-  revision = "e11730110bbd884bbf19550bfafe9d69519ce29e"
+  revision = "c10e9556a7bc0e7c942242b606f0acf024ad5d6a"
 
 [[projects]]
   branch = "master"
@@ -45,7 +45,7 @@
     "internal",
   ]
   pruneopts = "UT"
-  revision = "c453e0c757598fd055e170a3a359263c91e13153"
+  revision = "e0f2c55a7fc7d04742e0eef7918aa2389b0e1919"
 
 [[projects]]
   digest = "1:08206298775e5b462e6c0333f4471b44e63f1a70e42952b6ede4ecc9572281eb"
