@@ -2,6 +2,7 @@ GOCMD=go
 GOBUILD=$(GOCMD) build
 GOCLEAN=$(GOCMD) clean
 BINARY_NAME=bootstrap
+CGO_ENABLED=0
 
 all:	clean build
 build: 
