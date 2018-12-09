@@ -1,7 +1,7 @@
 package main
 
 import (
-	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -9,89 +9,62 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
-	"strings"
-
-	"github.com/google/go-github/github"
-	"golang.org/x/oauth2"
 )
 
+// Repo is the default repo structure.
+type Repo struct {
+	File	string `json:"file"`
+	Name	string `json:"name"`
+	URL		string `json:"url"`
+}
+
 func main() {
-	token := flag.String("t", "", "Github Personal API Token")
+	repo := flag.String("r", "https://raw.githubusercontent.com/OpenVGS/MiSTer-repository/master/repo.json", "Repo URL")
 	output := flag.String("o", "/tmp/mister", "Output Directory")
 
 	flag.Parse()
 
-	os.MkdirAll(*output, os.ModePerm)
-
-	if *token == "" {
-		fmt.Println("Github Personal API Token Required, use -t <API Token>")
-		os.Exit(-1)
-	}
-
-	org := "MiSTer-devel"
-	path := "releases"
-
-	ctx := context.Background()
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: *token},
-	)
-	tc := oauth2.NewClient(ctx, ts)
-
-	client := github.NewClient(tc)
-
-	opt := &github.RepositoryListByOrgOptions{
-		ListOptions: github.ListOptions{PerPage: 500},
-	}
-
-	repos, _, err := client.Repositories.ListByOrg(ctx, org, opt)
-
+	err := os.MkdirAll(*output, os.ModePerm)
 	if err != nil {
-		panic(err)
+		log.Fatal("Error creating output directory:", err)
+		return
 	}
 
-	hasCoresTest := func(s string) bool { return strings.HasSuffix(s, ".rbf") }
+	req, err := http.NewRequest("GET", *repo, nil)
+	if err != nil {
+		log.Fatal("Building repo request:", err)
+		return
+	}
+
+	client := &http.Client{}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Fatal("Repo request:", err)
+		return
+	}
+
+	defer Close(resp.Body)
+
+	var repos []Repo
+
+	if err := json.NewDecoder(resp.Body).Decode(&repos); err != nil {
+		log.Println(err)
+	}
 
 	for _, repo := range repos {
-		_, dir, _, err := client.Repositories.GetContents(ctx, org, *repo.Name, path, nil)
 
-		if err != nil {
-			continue
-		}
-
-		cores := FilterCores(dir, hasCoresTest)
-
-		sort.Slice(cores, func(i, j int) bool {
-			return strings.ToLower(*cores[i].Name) < strings.ToLower(*cores[j].Name)
-		})
-
-		if len(cores) < 1 {
-			continue
-		}
-
-		latest := cores[len(cores)-1]
-
-		if _, err := os.Stat(fmt.Sprintf("%s/%s", *output, *latest.Name)); os.IsNotExist(err) {
-			log.Printf("Downloadin %s core...\n", *latest.Name)
-			err := DownloadCore(fmt.Sprintf("%s/%s", *output, *latest.Name), *latest.DownloadURL)
+		if _, err := os.Stat(fmt.Sprintf("%s/%s", *output, repo.File)); os.IsNotExist(err) {
+			log.Printf("Downloading updated %s core...\n", repo.Name)
+			err := DownloadCore(fmt.Sprintf("%s/%s", *output, repo.File), repo.URL)
 
 			if err != nil {
 				panic(err)
 			}
 		} else {
-			log.Printf("Core %s already downloaded, skipping\n", *latest.Name)
+			log.Printf("Core %s already latest version, skipping\n", repo.Name)
 		}
 	}
-}
-
-// FilterCores applies a test function to each element in the list of cores and returns passing cores.
-func FilterCores(cores []*github.RepositoryContent, test func(string) bool) (ret []*github.RepositoryContent) {
-	for _, core := range cores {
-		if test(*core.Name) {
-			ret = append(ret, core)
-		}
-	}
-	return
 }
 
 // DownloadCore downloads core to local filesystem.
@@ -105,13 +78,13 @@ func DownloadCore(path string, url string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer Close(out)
 
 	resp, err := http.Get(url)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer Close(resp.Body)
 
 	_, err = io.Copy(out, resp.Body)
 	if err != nil {
@@ -119,4 +92,12 @@ func DownloadCore(path string, url string) error {
 	}
 
 	return nil
+}
+
+// Close is a generic io Closer with error handling
+func Close(c io.Closer) {
+	err := c.Close()
+	if err != nil {
+		log.Fatal("IO close error:", err)
+	}
 }
