@@ -27,7 +27,7 @@ func main() {
 //export Update
 func Update() {
 	repo := flag.String("r", "https://raw.githubusercontent.com/OpenVGS/MiSTer-repository/master/repo.json", "Repo URL")
-	output := flag.String("o", "/tmp/mister", "Output Directory")
+	output := flag.String("o", ".", "Output Directory")
 
 	flag.Parse()
 
