@@ -1,5 +1,7 @@
 package main
 
+import "C"
+
 import (
 	"encoding/json"
 	"flag"
@@ -19,6 +21,11 @@ type Repo struct {
 }
 
 func main() {
+	Update()
+}
+
+//export Update
+func Update() {
 	repo := flag.String("r", "https://raw.githubusercontent.com/OpenVGS/MiSTer-repository/master/repo.json", "Repo URL")
 	output := flag.String("o", "/tmp/mister", "Output Directory")
 
