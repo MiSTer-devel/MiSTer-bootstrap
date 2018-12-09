@@ -1,6 +1,6 @@
 # MiSTer-bootstrap
 
-Tool to bootstrap all latest cores for the MiSTer platform. Written in Golang with the hope of eventually running it on the MiSTer itself.
+MiSTer bootstrap is a tool that updates all cores for the MiSTer platform. Can be compiled to a binary for multiple platforms, and also a shared library to be directly invoked from C-code.
 
 # Requirements
 
@@ -10,7 +10,7 @@ Tool to bootstrap all latest cores for the MiSTer platform. Written in Golang wi
 # Usage
 
 `./MiSTer-bootstrap-go`
-	* `-r <Repo URL>`
-		* Optional Repo URL, defaults to OpenVGS/MiSTer-repository which is updated hourly.
-	* `-o <Output Directory>`
-		* Optional Output Directory, defaults to current directory.
+* `-r <Repo URL>`
+	* Optional Repo URL, defaults to OpenVGS/MiSTer-repository which is updated hourly.
+* `-o <Output Directory>`
+	* Optional Output Directory, defaults to current directory.
