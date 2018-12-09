@@ -9,7 +9,7 @@ MiSTer bootstrap is a tool that updates all cores for the MiSTer platform. Can b
 
 # Usage
 
-`./MiSTer-bootstrap-go`
+`./bootstrap`
 * `-r <Repo URL>`
 	* Optional Repo URL, defaults to OpenVGS/MiSTer-repository which is updated hourly.
 * `-o <Output Directory>`
