@@ -7,17 +7,20 @@ CC_WIN=i686-w64-mingw32-gcc
 CC_ARM=arm-linux-gnueabihf-gcc
 
 GOWIN=CC=$(CC_WIN) CGO_ENABLED=1 GOOS=windows GOARCH=386
+GOARM=CC=$(CC_ARM) CGO_ENABLED=1 GOOS=linux GOARCH=arm
 
 GOARM_SHARED=CC=$(CC_ARM) CGO_ENABLED=1 GOOS=linux GOARCH=arm
 
 BINARY_NAME=bootstrap
 BINARY_NAME_WIN=bootstrap.exe
 
-all:	clean build build-windows build-shared build-example
+all:	clean build build-windows build-arm build-shared build-example
 build: clean
 		$(GOBUILD) -o bin/$(BINARY_NAME) -v src/main.go
 build-windows:
 		$(GOWIN) $(GOBUILD) -o bin/$(BINARY_NAME_WIN) -v src/main.go
+build-arm:
+		$(GOARM) $(GOBUILD) -o bin/$(BINARY_NAME) -v src/main.go
 build-shared:
 		$(GOBUILD) -o bin/$(BINARY_NAME).so -buildmode=c-shared -v src/main.go
 build-shared-arm: clean
