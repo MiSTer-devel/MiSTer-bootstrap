@@ -1,3 +1,4 @@
+VERSION=1.0.0-alpha2
 GOCMD=go
 GOBUILD=$(GOCMD) build
 GOCLEAN=$(GOCMD) clean
@@ -10,8 +11,9 @@ GOWIN=CC=$(CC_WIN) CGO_ENABLED=1 GOOS=windows GOARCH=386
 
 GOARM_SHARED=CC=$(CC_ARM) CGO_ENABLED=1 GOOS=linux GOARCH=arm
 
-BINARY_NAME=bootstrap
-BINARY_NAME_WIN=bootstrap.exe
+BASE=bootstrap
+BINARY_NAME=MiSTer-bootstrap-linux-amd64-$(VERSION)
+BINARY_NAME_WIN=MiSTer-bootstrap-windows-amd64-$(VERSION).exe
 
 all:	clean build build-windows build-shared build-example
 build: clean
@@ -19,11 +21,13 @@ build: clean
 build-windows:
 		$(GOWIN) $(GOBUILD) -o bin/$(BINARY_NAME_WIN) -v src/main.go
 build-shared:
-		$(GOBUILD) -o bin/$(BINARY_NAME).so -buildmode=c-shared -v src/main.go
+		$(GOBUILD) -o bin/$(BASE).so -buildmode=c-archive -v src/main.go
 build-shared-arm: clean
-		$(GOARM_SHARED) $(GOBUILD) -o bin/$(BINARY_NAME).so -buildmode=c-shared -v src/main.go
+		$(GOARM_SHARED) $(GOBUILD) -o bin/$(BASE).a -buildmode=c-archive -v src/main.go
 build-example: clean build-shared
-		$(CC) -o bin/$(BINARY_NAME)_example -I./bin -L./bin example/example.cpp bin/bootstrap.so
+		$(CC) -o bin/$(BASE)_example -I./bin -L./bin example/example.cpp bin/bootstrap.so
 clean:
 		$(GOCLEAN)
+		rm -f bin/$(BASE)*
 		rm -f bin/$(BINARY_NAME)*
+		rm -f bin/$(BINARY_NAME_WIN)*
